@@ -1,200 +1,192 @@
 #!/bin/bash
-
+############################################################
+# SPECIFICATION:
+#  Longer options can be specified.
+#    $ command --alpha
 #
-# /usr/local/bin/
-# copy, move, remove, list
+#  Shorter options can be specified.
+#    $ command -a
 #
-func_usr_local_bin() {
-    local NAME="ulb"
-    local VERSION="v0.0.1"
-    local -i argc=0
-    local -a argv=()
-    local skip=false
+#  Multiple short options can be mixed and specified.
+#    $ command -abc
+#
+#  By using '=', can specify arguments starting with '-'.
+#    $ command -a=-100
+#    $ command --alpha=-100
+############################################################
 
-    local TARGET="/usr/local/bin"
-    local PERMISSION="755"
-    local OWNER="root"
-    local flag_copy=""
-    local flag_move=""
-    local flag_list=""
-    local flag_remove=""
-    local flag_interactive=""
+func_output_usage() {
+	cat << HELP
 
-    while (($# > 0))
-    do
-        case "$1" in
-            -*)
-                case "$1" in
-                    -h|--help)
-                        printf "\nUsage: %s [options] [arguments]\n\n" "$NAME"
-                        echo "Options:"
-                        printf "%-20s%s\n" '  -h, --help' 'display this help and exit'
-                        printf "%-20s%s\n" '  -v, --version' 'output version information and exit'
-                        printf "%-20s%s\n" '  -c, --copy' 'copy a file to the /usr/local/bin'
-                        printf "%-20s%s\n" '  -m, --move' 'move a file to the /usr/local/bin'
-                        printf "%-20s%s\n" '  -l, --list' 'use a long listing format. ls -l'
-                        printf "%-20s%s\n" '  -r, --remove' 'remove a file in the /usr/local/bin'
-                        printf "%-20s%s\n" '  -i, --interactive' 'prompt before processing'
-                        printf "%-20s%s\n" '  -p, --permission' 'set the permission (default 755)'
-                        printf "%-20s%s\n" '  -o, --owner' 'set the owner (default root)'
-                        echo
-                        return 0
-                        ;;
-                    -v|--version)
-                        echo $NAME $VERSION
-                        return 0
-                        ;;
-                    *)
-                        pt_short="cmlripo"
-                        if [[ "$1" =~ ^-([^-]+|$) ]] && [[ "$1" =~ ^-(.*[^$pt_short]+.*|)$ ]]; then
-                            echo "Error: invalid short option $1" 1>&2
-                            return -1
-                        fi
+Usage: $NAME [options] [arguments]
 
-                        pt_long="copy|move|list|remove|interactive|permission|owner"
-                        if [[ "$1" =~ ^-{2,} ]] && [[ ! "$1" =~ ^-{2}($pt_long)$ ]]; then
-                            echo "Error: invalid long option \`$1'" 1>&2
-                            return -1
-                        fi
+Options:
+  -c, --copy         Copy file to the /usr/local/bin.
+  -i, --interactive  Prompt before processiong.
+  -l, --list         Show listing items in /usr/local/bin.
+  -m, --move         Move file to the /usr/local/bin.
+  -o, --owner        Set the name of owner (Default: $OWNER)
+  -p, --permission   Set the file permission (Default: $PERMISSION)
+  -r, --remove       Remove file in the /usr/local/bin.
+  -h, --help         Display this help and exit.
+  -v, --version      Output version information and exit.
 
-                        # no argument
-                        if [[ "$1" =~ ^(-[^-]*l|--list$) ]]; then
-                            flag_list=1
-                        fi
-
-                        if [[ "$1" =~ ^(-[^-]*i|--interactive$) ]]; then
-                            flag_interactive=1
-                        fi
-
-                        if [[ "$1" =~ ^(-[^-]*c|--copy$) ]]; then
-                            flag_copy=1
-                        fi
-
-                        if [[ "$1" =~ ^(-[^-]*m|--move$) ]]; then
-                            flag_move=1
-                        fi
-
-                        if [[ "$1" =~ ^(-[^-]*r|--remove$) ]]; then
-                            flag_remove=1
-                        fi
-
-                        # required argument
-                        if [[ "$1" =~ ^(-[^-]*p|--permission$) ]]; then
-                            if [[ -z "$2" ]] || [[ "$2" =~ ^-+ ]]; then
-                                echo "Error: option requires an argument \`$1'" 1>&2
-                                return -1
-                            fi
-                            if [[ ! "$2" =~ ^[0-7]{3}$ ]]; then
-                                echo "Error: invalid argument \`$2'" 1>&2
-                                return -1
-                            fi
-                            PERMISSION="$2"
-                            skip=true
-                        fi
-
-                        if [[ "$1" =~ ^(-[^-]*o|--owner$) ]]; then
-                            if [[ -z "$2" ]] || [[ "$2" =~ ^-+ ]]; then
-                                echo "Error: option requires an argument \`$1'" 1>&2
-                                return -1
-                            fi
-                            OWNER="$2"
-                            skip=true
-                        fi
-
-                        if $skip; then
-                            skip=false
-                            shift 2
-                        else
-                            shift
-                        fi
-                        ;;
-                esac
-                ;;
-            *)
-                ((++argc))
-                argv+=( "$1" )
-                shift
-                ;;
-        esac
-    done
-
-    #
-    # ls command
-    #
-    if [ -n "$flag_list" ]; then
-        ls -lA --color=auto "$TARGET"
-        exit 0;
-    fi
-
-
-    if [[ $argc -gt 0 ]]; then
-        local value=""
-        local command="sudo"
-
-        #
-        # cp command
-        #
-        if [ -n "$flag_copy" ]; then
-            command="$command cp"
-            if [ -n "$flag_interactive" ]; then
-                command="$command -i"
-            fi
-
-            for value in ${argv[@]}
-            do
-                if [[ -f "$value" ]]; then
-                    sudo chmod "$PERMISSION" "$value" && \
-                    sudo chown "$OWNER:$OWNER" "$value" && \
-                    $command "$value" "$TARGET"
-                else
-                    echo "Error: no such file \`$value'"
-                fi
-            done
-            exit 0;
-        fi
-
-        #
-        # mv command
-        #
-        if [ -n "$flag_move" ]; then
-            command="$command mv"
-            if [[ -n "$flag_interactive" ]]; then
-                command="$command -i"
-            fi
-
-            for value in ${argv[@]}
-            do
-                if [[ -f "$value" ]]; then
-                    sudo chmod "$PERMISSION" "$value" && \
-                    sudo chown "$OWNER:$OWNER" "$value" && \
-                    $command "$value" "$TARGET"
-                else
-                    echo "Error: no such \`$value'"
-                fi
-            done
-            exit 0;
-        fi
-
-        #
-        # rm command
-        #
-        if [ -n "$flag_remove" ]; then
-            command="$command rm"
-            if [ -n "$flag_interactive" ]; then
-                command="$command -i"
-            fi
-
-            for value in ${argv[@]}
-            do
-                if [[ -f "$TARGET/$value" ]]; then
-                    $command "$TARGET/$value"
-                else
-                    echo "Error: no such \`$value' in the $TARGET"
-                fi
-            done
-            exit 0;
-        fi
-    fi
+HELP
+	exit 2
 }
-func_usr_local_bin $@
 
+func_output_version() {
+	echo "$NAME: $VERSION"
+	exit 2
+}
+
+func_output_error() {
+	echo "Error: $1." 1>&2
+	exit 1
+}
+
+func_split_by_equals() {
+	IFS='=' read -ra ARRAY <<< "$1"
+	OPTION="${ARRAY[0]}"
+	if [[ -n "${ARRAY[1]}" ]]; then
+		VALUE="${ARRAY[1]}"
+		SKIP=false
+	fi
+}
+
+func_verify_option() {
+	[[ "$1" =~ ^-([^-]+|$) ]] && [[ "$1" =~ ^-(.*[^$PATTERN_SHORT]+.*|)$ ]] && func_output_error "invalid option -- ‘$1‘"
+	[[ "$1" =~ ^-{2,} ]] && [[ ! "$1" =~ ^-{2}($PATTERN_LONG)$ ]] && func_output_error "invalid option -- ‘$1‘"
+}
+
+func_verify_required_option_error() {
+	[[ -z "$VALUE" ]] && func_output_error "required argument ‘$OPTION‘"
+	"${SKIP}" && [[ "$VALUE" =~ ^-+ ]] && func_output_error "invalid argument ‘$VALUE‘ for ‘$OPTION‘"
+}
+
+func_parse_arguments() {
+	##################################################
+	O_COPY=false
+	O_MOVE=false
+	O_LIST=false
+	O_REMOVE=false
+	O_OWNER="$OWNER"
+	O_PERMISSION="$PERMISSION"
+	O_INTERACTIVE=false
+
+	local PATTERN_SHORT="clmopri"
+	local PATTERN_LONG="copy|list|move|owner|permission|remove|"
+	##################################################
+
+	while (($# > 0)); do
+		case "$1" in
+			-h | --help)
+				func_output_usage
+				;;
+			-v | --version)
+				func_output_version
+				;;
+			-*)
+				local SKIP=true
+				local OPTION="$1"
+				local VALUE="$2"
+				func_split_by_equals "$OPTION"
+				func_verify_option "$OPTION"
+
+				if [[ "$OPTION" =~ ^(-[^-]*l|--list$) ]]; then O_LIST=true; fi
+				if [[ "$OPTION" =~ ^(-[^-]*i|--interactive$) ]]; then O_INTERACTIVE=true; fi
+				if [[ "$OPTION" =~ ^(-[^-]*c|--copy$) ]]; then O_COPY=true; fi
+				if [[ "$OPTION" =~ ^(-[^-]*m|--move$) ]]; then O_MOVE=true; fi
+				if [[ "$OPTION" =~ ^(-[^-]*r|--remove$) ]]; then O_REMOVE=true; fi
+
+				if [[ "$OPTION" =~ ^(-[^-]*p|--permission$) ]]; then
+					func_verify_required_option_error
+					[[ ! "$VALUE" =~ ^[0-7]{3}$ ]] && func_output_error "Illigal permission -- ‘$VALUE‘"
+					O_PERMISSION="$VALUE"
+					"${SKIP}" && shift
+				fi
+
+				if [[ "$OPTION" =~ ^(-[^-]*o|--owner$) ]]; then
+					func_verify_required_option_error
+					O_OWNER="$VALUE"
+					"${SKIP}" && shift
+				fi
+
+				shift
+				;;
+			*)
+				((++ARGC))
+				ARGV+=("$1")
+				shift
+				;;
+		esac
+	done
+
+}
+
+func_exec_ulb_list() {
+	ls -lA --color=auto "$TARGET"
+	exit 0
+}
+
+func_exec_ulb_file_handler() {
+	local CMD="sudo"
+
+	local VALUE="${ARGV[0]}"
+
+	case "$1" in
+		copy | move)
+			if [[ ! -f "$VALUE" ]]; then func_output_error "no such file $VALUE"; fi
+
+			[[ "$1" == "copy" ]] && CMD="$CMD cp"
+			[[ "$1" == "move" ]] && CMD="$CMD mv"
+			"${O_INTERACTIVE}" && CMD="$CMD -i"
+
+			sudo chmod "$O_PERMISSION" "$VALUE" \
+				&& sudo chown "$O_OWNER:$O_OWNER" "$VALUE" \
+				&& $CMD "$VALUE" "$TARGET"
+
+			echo "$CMD $VALUE $TARGET"
+			;;
+		remove)
+			if [[ ! -f "$TARGET/$VALUE" ]]; then func_output_error "no such file $TARGET/$VALUE"; fi
+
+			CMD="$CMD rm"
+			"${O_INTERACTIVE}" && CMD="$CMD -i"
+			$CMD "$TARGET/$VALUE"
+
+			echo "$CMD $TARGET/$VALUE"
+			;;
+	esac
+
+	exit 0
+}
+
+func_exec_ulb() {
+	local TARGET="/usr/local/bin"
+
+	"${O_LIST}" && func_exec_ulb_list
+
+	[[ "$ARGC" -eq 0 ]] && func_output_error "File not specified"
+
+	"${O_COPY}" && func_exec_ulb_file_handler "copy"
+	"${O_MOVE}" && func_exec_ulb_file_handler "move"
+	"${O_REMOVE}" && func_exec_ulb_file_handler "remove"
+}
+
+func_main() {
+	local NAME=$(basename "$0")
+	local VERSION="v1.0"
+
+	local -i ARGC=0
+	local -a ARGV=()
+
+	local PERMISSION="755"
+	local OWNER="root"
+
+	func_parse_arguments "$@"
+
+	func_exec_ulb
+}
+
+func_main "$@"
