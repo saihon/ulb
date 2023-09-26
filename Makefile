@@ -3,7 +3,7 @@ FILE := $(NAME).sh
 PREFIX := /usr/local/bin
 
 $(NAME): clean
-	@test -f $(FILE) && cp $(FILE) $(NAME) && chmod 777 $(NAME)
+	@test -f $(FILE) && cp $(FILE) $(NAME) && chmod 755 $(NAME)
 
 .PHONY: clean install uninstall
 

@@ -1,19 +1,4 @@
 #!/bin/bash
-############################################################
-# SPECIFICATION:
-#  Longer options can be specified.
-#    $ command --alpha
-#
-#  Shorter options can be specified.
-#    $ command -a
-#
-#  Multiple short options can be mixed and specified.
-#    $ command -abc
-#
-#  By using '=', can specify arguments starting with '-'.
-#    $ command -a=-100
-#    $ command --alpha=-100
-############################################################
 
 func_output_usage() {
 	cat << HELP
