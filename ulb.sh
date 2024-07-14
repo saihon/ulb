@@ -30,13 +30,12 @@ func_output_usage() {
 Usage: $NAME [options] [arguments]
 
 Options:
-  -c, --copy         Copy file to the /usr/local/bin.
+  -c, --copy         Copy file to the $TARGET.
   -i, --interactive  Prompt before processiong.
-  -l, --list         Show listing items in /usr/local/bin.
-  -m, --move         Move file to the /usr/local/bin.
-  -o, --owner        Set the name of owner (Default: $OWNER)
+  -l, --list         Show listing items in $TARGET.
+  -m, --move         Move file to the $TARGET.
   -p, --permission   Set the file permission (Default: $PERMISSION)
-  -r, --remove       Remove file in the /usr/local/bin.
+  -r, --remove       Remove file in the $TARGET.
   -h, --help         Display this help and exit.
   -v, --version      Output version information and exit.
 
@@ -49,7 +48,7 @@ func_output_version() {
     exit 2
 }
 
-func_output_error() {
+func_output_error_exit() {
     echo "Error: $1." 1>&2
     exit 1
 }
@@ -64,13 +63,13 @@ func_split_by_equals() {
 }
 
 func_verify_option() {
-    [[ "$1" =~ ^-([^-]+|$) ]] && [[ "$1" =~ ^-(.*[^$PATTERN_SHORT]+.*|)$ ]] && func_output_error "invalid option -- ‘$1‘"
-    [[ "$1" =~ ^-{2,} ]] && [[ ! "$1" =~ ^-{2}($PATTERN_LONG)$ ]] && func_output_error "invalid option -- ‘$1‘"
+    [[ "$1" =~ ^-([^-]+|$) ]] && [[ "$1" =~ ^-(.*[^$PATTERN_SHORT]+.*|)$ ]] && func_output_error_exit "invalid option -- ‘$1‘"
+    [[ "$1" =~ ^-{2,} ]] && [[ ! "$1" =~ ^-{2}($PATTERN_LONG)$ ]] && func_output_error_exit "invalid option -- ‘$1‘"
 }
 
 func_verify_required_option_error() {
-    [[ -z "$VALUE" ]] && func_output_error "required argument ‘$OPTION‘"
-    "${SKIP}" && [[ "$VALUE" =~ ^-+ ]] && func_output_error "invalid argument ‘$VALUE‘ for ‘$OPTION‘"
+    [[ -z "$VALUE" ]] && func_output_error_exit "required argument ‘$OPTION‘"
+    "${SKIP}" && [[ "$VALUE" =~ ^-+ ]] && func_output_error_exit "invalid argument ‘$VALUE‘ for ‘$OPTION‘"
 }
 
 func_parse_arguments() {
@@ -79,12 +78,11 @@ func_parse_arguments() {
     O_MOVE=false
     O_LIST=false
     O_REMOVE=false
-    O_OWNER="$OWNER"
     O_PERMISSION="$PERMISSION"
     O_INTERACTIVE=false
 
-    local PATTERN_SHORT="clmopri"
-    local PATTERN_LONG="copy|list|move|owner|permission|remove|"
+    local PATTERN_SHORT="clmpri"
+    local PATTERN_LONG="copy|interactive|list|move|permission|remove"
     ##################################################
 
     while (($# > 0)); do
@@ -110,14 +108,8 @@ func_parse_arguments() {
 
             if [[ "$OPTION" =~ ^(-[^-]*p|--permission$) ]]; then
                 func_verify_required_option_error
-                [[ ! "$VALUE" =~ ^[0-7]{3}$ ]] && func_output_error "Illigal permission -- ‘$VALUE‘"
+                [[ ! "$VALUE" =~ ^[0-7]{3}$ ]] && func_output_error_exit "Illigal permission -- ‘$VALUE‘"
                 O_PERMISSION="$VALUE"
-                "${SKIP}" && shift
-            fi
-
-            if [[ "$OPTION" =~ ^(-[^-]*o|--owner$) ]]; then
-                func_verify_required_option_error
-                O_OWNER="$VALUE"
                 "${SKIP}" && shift
             fi
 
@@ -133,32 +125,32 @@ func_parse_arguments() {
 
 }
 
-func_exec_ulb_list() {
+func_list() {
     ls -lA --color=auto "$TARGET"
     exit 0
 }
 
-func_exec_ulb_file_handler() {
-    local CMD="sudo"
-
+func_run() {
+    local CMD=""
     local VALUE="${ARGV[0]}"
+
+    if [ "$(id -u)" -ne 0 ]; then
+        CMD="sudo"
+    fi
 
     case "$1" in
     copy | move)
-        if [[ ! -f "$VALUE" ]]; then func_output_error "no such file $VALUE"; fi
+        if [[ ! -f "$VALUE" ]]; then func_output_error_exit "no such file $VALUE"; fi
 
         [[ "$1" == "copy" ]] && CMD="$CMD cp"
         [[ "$1" == "move" ]] && CMD="$CMD mv"
         "${O_INTERACTIVE}" && CMD="$CMD -i"
 
-        sudo chmod "$O_PERMISSION" "$VALUE" &&
-            sudo chown "$O_OWNER:$O_OWNER" "$VALUE" &&
-            $CMD "$VALUE" "$TARGET"
-
+        chmod "$O_PERMISSION" "$VALUE" && $CMD "$VALUE" "$TARGET"
         echo "$CMD $VALUE $TARGET"
         ;;
     remove)
-        if [[ ! -f "$TARGET/$VALUE" ]]; then func_output_error "no such file $TARGET/$VALUE"; fi
+        if [[ ! -f "$TARGET/$VALUE" ]]; then func_output_error_exit "no such file $TARGET/$VALUE"; fi
 
         CMD="$CMD rm"
         "${O_INTERACTIVE}" && CMD="$CMD -i"
@@ -171,31 +163,27 @@ func_exec_ulb_file_handler() {
     exit 0
 }
 
-func_exec_ulb() {
-    local TARGET="/usr/local/bin"
-
-    "${O_LIST}" && func_exec_ulb_list
-
-    [[ "$ARGC" -eq 0 ]] && func_output_error "File not specified"
-
-    "${O_COPY}" && func_exec_ulb_file_handler "copy"
-    "${O_MOVE}" && func_exec_ulb_file_handler "move"
-    "${O_REMOVE}" && func_exec_ulb_file_handler "remove"
-}
-
 func_main() {
-    local NAME=$(basename "$0")
-    local VERSION="v1.0"
+    NAME=$(basename "$0")
+    VERSION="v0.0.2"
+
+    TARGET="/usr/local/bin"
+    readonly NAME VERSION TARGET
 
     local -i ARGC=0
     local -a ARGV=()
 
     local PERMISSION="755"
-    local OWNER="root"
 
     func_parse_arguments "$@"
 
-    func_exec_ulb
+    "${O_LIST}" && func_list
+
+    [[ "$ARGC" -eq 0 ]] && func_output_error_exit "File not specified"
+
+    "${O_COPY}" && func_run "copy"
+    "${O_MOVE}" && func_run "move"
+    "${O_REMOVE}" && func_run "remove"
 }
 
 func_main "$@"
